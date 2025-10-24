@@ -1,0 +1,98 @@
+name: Sync and Deploy
+on:
+  repository_dispatch:
+    types: [notion-update]
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours (4 times per day)
+  workflow_dispatch:
+  # Only trigger on content changes to avoid deployment conflicts during setup
+  push:
+    branches: [main]
+    paths:
+      - 'posts.json'
+      - '*.html'
+      - '!index.html'
+
+# Prevent multiple simultaneous workflow runs
+concurrency:
+  group: blog-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "Using existing package-lock.json"
+            npm ci
+          else
+            echo "No package-lock.json found, installing and generating lockfile"
+            npm install
+            echo "Dependencies installed and package-lock.json generated"
+          fi
+      - name: Verify installation
+        run: |
+          echo "Node.js version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Installed packages:"
+          npm list --depth=0 || echo "Some packages may have peer dependency warnings (this is normal)"
+      - name: Sync Notion
+        run: |
+          echo "Starting Notion sync..."
+          if [ ! -f sync.js ]; then
+            echo "Error: sync.js not found"
+            exit 1
+          fi
+          node sync.js
+          echo "Sync completed successfully"
+        env:
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+      - name: Check for changes
+        run: |
+          echo "Checking for generated files..."
+          ls -la
+          if [ -f posts.json ]; then
+            echo "posts.json generated successfully"
+            cat posts.json
+          else
+            echo "Warning: posts.json not found"
+          fi
+          git status
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Always add package-lock.json if it was generated
+          if [ -f package-lock.json ] && ! git ls-files --error-unmatch package-lock.json > /dev/null 2>&1; then
+            echo "Adding newly generated package-lock.json"
+            git add package-lock.json
+          fi
+          
+          # Add all other changes
+          git add .
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            echo "Committing changes..."
+            git commit -m "Auto-sync from Notion [$(date +'%Y-%m-%d %H:%M:%S')]"
+            git push
+            echo "Changes pushed successfully"
+          fi
