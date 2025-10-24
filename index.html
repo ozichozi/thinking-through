@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>thinking through</title>
+    <style>
+        :root {
+            --bg-color: #fff;
+            --text-color: #333;
+            --accent-color: #666;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1a1a1a;
+                --text-color: #e5e5e5;
+                --accent-color: #a0a0a0;
+            }
+        }
+        
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #e5e5e5;
+            --accent-color: #a0a0a0;
+        }
+        
+        [data-theme="light"] {
+            --bg-color: #fff;
+            --text-color: #333;
+            --accent-color: #666;
+        }
+        
+        * { transition: background-color 0.3s ease, color 0.3s ease; }
+        
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            line-height: 1.6;
+            max-width: 650px;
+            margin: 40px auto;
+            padding: 0 10px;
+            color: var(--text-color);
+            background: var(--bg-color);
+        }
+        
+        a { 
+            color: var(--text-color); 
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s ease;
+        }
+        
+        a:hover {
+            border-bottom-color: var(--accent-color);
+        }
+        
+        h1 { 
+            margin-bottom: 30px; 
+            font-size: 2em;
+        }
+        
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-color);
+            border: 1px solid var(--accent-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .theme-toggle:hover {
+            opacity: 0.8;
+        }
+        
+        .post-item {
+            margin-bottom: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--accent-color);
+        }
+        
+        .post-item:last-child {
+            border-bottom: none;
+        }
+        
+        .post-title {
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        
+        .post-date {
+            color: var(--accent-color);
+            font-size: 0.9em;
+            margin-top: 4px;
+        }
+        
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()">◑</button>
+    <h1>thinking through</h1>
+    <div id="posts">
+        <!-- Posts will be inserted here -->
+    </div>
+    
+    <script>
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+        }
+        
+        // Initialize theme
+        const saved = localStorage.getItem('theme');
+        if (saved) {
+            document.documentElement.setAttribute('data-theme', saved);
+        } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (!localStorage.getItem('theme')) {
+                document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+            }
+        });
+        
+        // Auto-refresh functionality
+        let lastPostsHash = '';
+        
+        function loadPosts() {
+            fetch('posts.json?v=' + Date.now())
+              .then(res => res.json())
+              .then(posts => {
+                // Create a simple hash of posts to detect changes
+                const postsHash = JSON.stringify(posts.map(p => ({ title: p.title, date: p.date })));
+                
+                // Only update if posts have changed
+                if (postsHash !== lastPostsHash) {
+                  lastPostsHash = postsHash;
+                  console.log('Posts updated:', posts);
+                  document.getElementById('posts').innerHTML = posts
+                    .map(post => `
+                      <div class="post-item">
+                        <div class="post-title">
+                          <a href="${post.slug}.html">${post.title}</a>
+                        </div>
+                        <div class="post-date">${post.date}</div>
+                      </div>
+                    `)
+                    .join('');
+                }
+              })
+              .catch(error => {
+                console.error('Error loading posts:', error);
+                document.getElementById('posts').innerHTML = '<p>No posts found.</p>';
+              });
+        }
+        
+        // Initial load
+        loadPosts();
+        
+        // Auto-refresh when page becomes visible (user returns to tab)
+        document.addEventListener('visibilitychange', function() {
+          if (!document.hidden) {
+            // Check for updates when user returns to tab
+            setTimeout(loadPosts, 1000);
+          }
+        });
+    </script>
+</body>
+</html>
