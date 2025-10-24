@@ -1,0 +1,19 @@
+{
+  "name": "thinking-through",
+  "version": "1.0.0",
+  "description": "Automated blog powered by Notion and GitHub Pages",
+  "private": true,
+  "scripts": {
+    "sync": "node sync.js",
+    "start": "node sync.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.14",
+    "notion-to-md": "^3.1.1", 
+    "marked": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["notion", "blog", "github-pages", "automation"]
+}
